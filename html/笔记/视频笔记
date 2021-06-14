@@ -1,0 +1,128 @@
+1.Hadoop 的组成
+  1.x: HDFS(存) MapReduce(计算和资源调度)
+  2.x 3.x: HDFS(存) MapReduce(计算) Yarn(资源调度)
+2.HDFS的架构  
+  NameNode(nn):是HDFS的大哥。 管理和存储所有真实数据的元数据信息(文件名 文件大小 创建时间 等)
+  DateNode(dn):是HDFS的小弟。  存储真实的数据。以块为单位. 默认的块大小时128M,比如一个200M的文件，存储到
+  HDFS后，是两块：128M  72M
+  Secondary NameNode(2nn) :是NameNode的秘书，辅助NameNode干活,分担NameNode工作，减轻NameNode压力
+  
+3.yarn的架构
+   ResourceManager(rm):是yarn的大哥，管理和分配集群中所有的资源(来自于每个机器的资源)
+   NodeManager(nm): 是Yarn的小弟。管理所在机器的资源
+   ApplicationMaster(am):每个Job都对应一个ApplicationMaster,主要负责Job的执行过程(资源申请，监控，容错等)
+   Container: 对资源的抽象封装，防止资源被侵占
+
+4.MapReduce架构
+  1.map阶段将数据分到多台机器进行计算
+  2.Reduce :将多台机器中运算的结果统一起来。
+  
+5.Hadoop目录结构：
+		bin:Hadoop 的命令
+		sbin:Hadoop的脚本
+		etc:Hadoop的配置文件
+		share:Hadoop的jar包
+6.Hadoop的官方案例
+		6.1 grep:通过指定好的正则,匹配文件中满足正则的单词并输出
+		[atguigu@hadoopbase102 output1]$ hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.3.jar grep input output1 'dfs[a-z0-9]+'
+		6.2 WordCount 案列
+		    [atguigu@hadoopbase102 wcoutput]$ hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.3.jar wordcount wcinput wcoutput
+7.图形化界面系统安装jdk需要卸载注意的问题:
+	  默认自带了openjdk ,我们在安装自己的jdk之前，需要将openjdk卸载。
+	  如何卸载: 
+	   1).查询安装的openjdk的RPM
+	   2).卸载rpm -qa | grep -i java
+	   rpm -e --nodeps rpm包
+	   3).组合实现
+		 rpm -qa |grep -i java | xargs -n1 (sudo) rpm -e --nodeps
+
+8.安全拷贝
+	scp    -r          $pdir/$fname              $user@hadoop$host:$pdir/$fname
+	命令   递归       要拷贝的文件路径/名称    目的用户@主机:目的路径/名称
+
+9.rsync 远程同步	主要用于备份和镜像。具有速度快、避免复制相同内容和支持符号链接的优点	 
+
+10.集群规划
+	10.1  理论规划
+		1)HDFS:NameNode DateNode SecondaryNamenode
+		2)Yarn:ResourceManager NodeManager
+		3)NameNode  SecondaryNamenode ResourceManager 对资源的需求比较大，应该把他们分布到不同的机器中
+		4)按照Hadoop官方默认的3个副本来说，最少需要3个DataNode节点，也就是需要3台机器
+		5)NodeManager 主要管理的是DataNode机器的资源，因此NodeManager和DtataNode搭建到一起，(有DN的地方就有NM)
+		6)理论规划
+	10.2  实际情况
+		有三台机器
+		hadoop102:DateNode NodeManager NameNode
+		hadoop103:DateNode NodeManager ResourceManager
+		Hadoop104:DateNode NameManager SecondaryNamenode
+
+11.Hadoop配置文件的说明
+	2.1 默认配置文件
+		core-default.xml  hdfs-default.xml yarn-default.xml mapred-default.xml
+	2.2 自定义配置文件
+		core-site.xml hdfs-site.xml yarn-site.xml mapred-site.xml
+	2.3 优先级
+		xxx-site.xml >xxx-default.xml
+		
+		
+		
+12.集群启动：
+	1) 如果集群是新集群，第一次启动需要格式化nameNode
+	   在namenode的节点执行： hdfs namenode -format
+	2) 启动namenode
+		在namenode的节点执行：hdfs --daemon start namenode
+	3) 启动datanode
+		在所有的节点执行：hdfs --daemon start datanode
+	4) 启动2nn
+		在2nn的节点执行：hdfs --daemon start secondarynamenode
+	5)启动resourcemanager
+		在rm的节点执行： yarn --daemon start resourcemanager
+	6)启动nodemanager
+		在所有的节点执行： yarn -- daemon start nodemanager
+	7)验证 
+		通过jps 命令查看所有的继承是否存在
+		或者通过web端访问
+		NN: hadoop102:9870
+		RM: hadoop103:8088
+		
+13.ssh免密登:
+    分别在102 103 104 生成公私钥
+	ssh -keygen -t rsa(4次)
+	ssh-copy-id 主机名
+	
+14.集群的启动/停止方式
+    (1)单点启动/停止方
+		 hdfs --daemon start /stop namenode/datanode/secondarynamenode
+		 hdfs --daemon start/stop resourcemanager/nodemanager
+	(2)群起/群停
+	     前提:配置ssh免密登陆，配置workers文件(hadoop2.x中是slaves文件)
+		 在NN的节点:start-dfs.sh/stop-dfs.sh
+		 在rm的节点:start-yarn.sh/stop-yarn.sh
+15.编写集群的管理脚本
+(1)集群的启动和停止脚本   
+	 设计: mycluster.sh start/stop
+(3)查看集群中各个机器进程的脚本 jps
+     设计: myjps.sh
+
+16.测试结果
+   (1)在HDFS中创建目录
+     hadoop fs -mkdir /input
+    (2) 上传数据到HDFS
+     hadoop fs -put	待上传的数据 /input
+	 (3) 查看DataNode存储的位置
+	    /opt/module/hadoop-3.1.3/data/data/current/BP-415089956-192.168.1.130-1622961171350/current/finalized/subdir0/subdir0
+		查看 ll -h
+17.yarn 执行wordCount 程序
+    1) 在HDFS中创建目录
+	     Hadoop fs -mkdir /wcinput
+    2) 上传数据到/wcinput
+	    hadoop fs -put 待上传的数据 /wcinput
+    3) 执行wordCount
+	    hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.3.jar wordcount /wcinput /output 
+	
+18.Hadoop相关端口号
+   1)NameNode内部通信端口号:8020
+   2)NameNode web 端端口:9870
+   3)2NN web 端口 9868
+   4)yarn/ ResourceManager web 端口 8088
+   5)历史服务器web端端口:19888
